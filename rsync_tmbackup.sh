@@ -550,13 +550,15 @@ while : ; do
 	fi
 
 	# -----------------------------------------------------------------------------
-	# Add symlink to last backup
+    # Add symlink to last successful backup
 	# -----------------------------------------------------------------------------
 
+    if [[ $EXIT_CODE == "0" ]]; then
 	fn_rm_file "$DEST_FOLDER/latest"
 	fn_ln "$(basename -- "$DEST")" "$DEST_FOLDER/latest"
 
 	fn_rm_file "$INPROGRESS_FILE"
+    fi
 
 	exit $EXIT_CODE
 done
