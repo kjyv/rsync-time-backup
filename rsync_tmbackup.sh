@@ -46,6 +46,7 @@ fn_display_usage() {
     echo "                        not be managed by the script - in particular they will not be"
     echo "                        automatically deleted."
     echo "                        Default: $LOG_DIR"
+    echo " --trim-log             Remove all lines from the log file that don't indicate a change (useful together with --log-dir)."
     echo " --strategy             Set the expiration strategy. Default: \"1:1 30:7 365:30\" means after one"
     echo "                        day, keep one backup per day. After 30 days, keep one backup every 7 days."
     echo "                        After 365 days keep one backup every 30 days."
@@ -291,6 +292,9 @@ while :; do
             shift
             LOG_DIR="$1"
             AUTO_DELETE_LOG="0"
+            ;;
+        --trim-log)
+            TRIM_LOG="1"
             ;;
         --no-auto-expire)
             AUTO_EXPIRE="0"
@@ -554,6 +558,10 @@ while : ; do
         EXIT_CODE="0"
     else
         fn_log_info "Backup completed without errors."
+        if [[ $TRIM_LOG == "1" ]]; then
+            fn_log_info "Trimming log file"
+            grep -v '\.\.\.' "$LOG_FILE" > "$LOG_FILE.min" && mv "$LOG_FILE.min" "$LOG_FILE"
+        fi
         if [[ $AUTO_DELETE_LOG == "1" ]]; then
             rm -f -- "$LOG_FILE"
         fi
