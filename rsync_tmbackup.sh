@@ -38,6 +38,7 @@ fn_display_usage() {
     echo " -p, --port             SSH port."
     echo " -h, --help             Display this help message."
     echo " -i, --id_rsa           Specify the private ssh key to use."
+    echo " --rsync-path           Specify the local rsync to use."
     echo " --rsync-get-flags      Display the default rsync flags that are used for backup."
     echo " --rsync-set-flags      Set the rsync flags that are going to be used for backup."
     echo " --rsync-append-flags   Append the rsync flags that are going to be used for backup."
@@ -248,6 +249,7 @@ AUTO_DELETE_LOG="1"
 EXPIRATION_STRATEGY="1:1 30:7 365:30"
 AUTO_EXPIRE="1"
 
+RSYNC_PATH="rsync"
 RSYNC_FLAGS="-D --compress --numeric-ids --links --hard-links --one-file-system --itemize-changes --times --recursive --perms --owner --group --stats --human-readable"
 
 while :; do
@@ -263,6 +265,10 @@ while :; do
         -i|--id_rsa)
             shift
             ID_RSA="$1"
+            ;;
+        --rsync-path)
+            shift
+            RSYNC_PATH="$1"
             ;;
         --rsync-get-flags)
             shift
@@ -390,6 +396,10 @@ if [ ! -d "$LOG_DIR" ]; then
     mkdir -- "$LOG_DIR"
 fi
 
+# start marker for continuous logfiles
+echo ""
+echo "Starting backup run at $NOW"
+
 # -----------------------------------------------------------------------------
 # Handle case where a previous backup failed or was interrupted.
 # -----------------------------------------------------------------------------
@@ -483,7 +493,7 @@ while : ; do
     fn_log_info "From: $SSH_SRC_FOLDER_PREFIX$SRC_FOLDER/"
     fn_log_info "To:   $SSH_DEST_FOLDER_PREFIX$DEST/"
 
-	CMD="rsync"
+    CMD=$RSYNC_PATH
     if [ -n "$SSH_CMD" ]; then
         if [ -n "$ID_RSA" ] ; then
             CMD="$CMD  -e 'ssh -p $SSH_PORT -i $ID_RSA -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
