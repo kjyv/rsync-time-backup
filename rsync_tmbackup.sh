@@ -218,7 +218,10 @@ fn_rm_file() {
 }
 
 fn_rm_dir() {
-    fn_run_cmd "rm -rf -- '$1'"
+    #fn_run_cmd "rm -rf -- '$1'"
+    fn_mkdir "/tmp/rsync-time-backup-emptydir"
+    fn_run_cmd "rsync -r --delete /tmp/rsync-time-backup-emptydir/ '$1'"
+    fn_run_cmd "rmdir /tmp/rsync-time-backup-emptydir '$1'"
 }
 
 fn_touch() {
