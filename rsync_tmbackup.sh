@@ -509,7 +509,7 @@ while : ; do
     CMD="$CMD --log-file '$LOG_FILE'"
     if [ -n "$EXCLUSION_FILE" ]; then
         # We've already checked that $EXCLUSION_FILE doesn't contain a single quote
-        CMD="$CMD --exclude-from '$EXCLUSION_FILE'"
+        CMD="$CMD --filter 'merge $EXCLUSION_FILE'"
     fi
     CMD="$CMD $LINK_DEST_OPTION"
     CMD="$CMD -- '$SSH_SRC_FOLDER_PREFIX$SRC_FOLDER/' '$SSH_DEST_FOLDER_PREFIX$DEST/'"
