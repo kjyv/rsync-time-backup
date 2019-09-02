@@ -254,7 +254,7 @@ EXPIRATION_STRATEGY="1:1 30:7 365:30"
 AUTO_EXPIRE="1"
 
 RSYNC_PATH="rsync"
-RSYNC_FLAGS="-D --compress --numeric-ids --links --hard-links --one-file-system --itemize-changes --times --recursive --perms --owner --group --stats --human-readable"
+RSYNC_FLAGS="-D --numeric-ids --links --hard-links --one-file-system --itemize-changes --times --recursive --perms --owner --group --stats --human-readable"
 
 while :; do
     case $1 in
@@ -277,6 +277,7 @@ while :; do
         --rsync-get-flags)
             shift
             echo $RSYNC_FLAGS
+            echo "if using remote drive over SSH, --compress will be added"
             exit
             ;;
         --rsync-set-flags)
@@ -460,6 +461,7 @@ fi
 # Run in a loop to handle the "No space left on device" logic.
 while : ; do
 
+<<<<<<< HEAD
     # -----------------------------------------------------------------------------
     # Check if we are doing an incremental backup (if previous backup exists).
     # -----------------------------------------------------------------------------
@@ -496,6 +498,7 @@ while : ; do
 
     CMD=$RSYNC_PATH
     if [ -n "$SSH_CMD" ]; then
+        $RSYNC_FLAGS="$RSYNC_FLAGS --compress"
         if [ -n "$ID_RSA" ] ; then
             CMD="$CMD  -e 'ssh -p $SSH_PORT -i $ID_RSA -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
         else
@@ -583,4 +586,123 @@ while : ; do
     fn_expire_backups
 
     exit $EXIT_CODE
+=======
+	# -----------------------------------------------------------------------------
+	# Check if we are doing an incremental backup (if previous backup exists).
+	# -----------------------------------------------------------------------------
+
+	LINK_DEST_OPTION=""
+	if [ -z "$PREVIOUS_DEST" ]; then
+		fn_log_info "No previous backup - creating new one."
+	else
+		# If the path is relative, it needs to be relative to the destination. To keep
+		# it simple, just use an absolute path. See http://serverfault.com/a/210058/118679
+		PREVIOUS_DEST="$(fn_get_absolute_path "$PREVIOUS_DEST")"
+		fn_log_info "Previous backup found - doing incremental backup from $SSH_DEST_FOLDER_PREFIX$PREVIOUS_DEST"
+		LINK_DEST_OPTION="--link-dest='$PREVIOUS_DEST'"
+	fi
+
+	# -----------------------------------------------------------------------------
+	# Create destination folder if it doesn't already exists
+	# -----------------------------------------------------------------------------
+
+	if [ -z "$(fn_find "$DEST -type d" 2>/dev/null)" ]; then
+		fn_log_info "Creating destination $SSH_DEST_FOLDER_PREFIX$DEST"
+		fn_mkdir "$DEST"
+	fi
+
+	# -----------------------------------------------------------------------------
+	# Purge certain old backups before beginning new backup.
+	# -----------------------------------------------------------------------------
+
+	fn_expire_backups
+
+	# -----------------------------------------------------------------------------
+	# Start backup
+	# -----------------------------------------------------------------------------
+
+	LOG_FILE="$LOG_DIR/$(date +"%Y-%m-%d-%H%M%S").log"
+
+	fn_log_info "Starting backup..."
+	fn_log_info "From: $SSH_SRC_FOLDER_PREFIX$SRC_FOLDER/"
+	fn_log_info "To:   $SSH_DEST_FOLDER_PREFIX$DEST/"
+
+	CMD="rsync"
+	if [ -n "$SSH_CMD" ]; then
+		$RSYNC_FLAGS="$RSYNC_FLAGS --compress"
+		if [ -n "$ID_RSA" ] ; then
+			CMD="$CMD  -e 'ssh -p $SSH_PORT -i $ID_RSA -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
+		else
+			CMD="$CMD  -e 'ssh -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
+		fi
+	fi
+	CMD="$CMD $RSYNC_FLAGS"
+	CMD="$CMD --log-file '$LOG_FILE'"
+	if [ -n "$EXCLUSION_FILE" ]; then
+		# We've already checked that $EXCLUSION_FILE doesn't contain a single quote
+		CMD="$CMD --exclude-from '$EXCLUSION_FILE'"
+	fi
+	CMD="$CMD $LINK_DEST_OPTION"
+	CMD="$CMD -- '$SSH_SRC_FOLDER_PREFIX$SRC_FOLDER/' '$SSH_DEST_FOLDER_PREFIX$DEST/'"
+
+	fn_log_info "Running command:"
+	fn_log_info "$CMD"
+
+	fn_run_cmd "echo $MYPID > $INPROGRESS_FILE"
+	eval $CMD
+
+	# -----------------------------------------------------------------------------
+	# Check if we ran out of space
+	# -----------------------------------------------------------------------------
+
+	NO_SPACE_LEFT="$(grep "No space left on device (28)\|Result too large (34)" "$LOG_FILE")"
+
+	if [ -n "$NO_SPACE_LEFT" ]; then
+
+		if [[ $AUTO_EXPIRE == "0" ]]; then
+			fn_log_error "No space left on device, and automatic purging of old backups is disabled."
+			exit 1
+		fi
+
+		fn_log_warn "No space left on device - removing oldest backup and resuming."
+
+		if [[ "$(fn_find_backups | wc -l)" -lt "2" ]]; then
+			fn_log_error "No space left on device, and no old backup to delete."
+			exit 1
+		fi
+
+		fn_expire_backup "$(fn_find_backups | tail -n 1)"
+
+		# Resume backup
+		continue
+	fi
+
+	# -----------------------------------------------------------------------------
+	# Check whether rsync reported any errors
+	# -----------------------------------------------------------------------------
+
+	EXIT_CODE="1"
+	if [ -n "$(grep "rsync error:" "$LOG_FILE")" ]; then
+		fn_log_error "Rsync reported an error. Run this command for more details: grep -E 'rsync:|rsync error:' '$LOG_FILE'"
+	elif [ -n "$(grep "rsync:" "$LOG_FILE")" ]; then
+		fn_log_warn "Rsync reported a warning. Run this command for more details: grep -E 'rsync:|rsync error:' '$LOG_FILE'"
+	else
+		fn_log_info "Backup completed without errors."
+		if [[ $AUTO_DELETE_LOG == "1" ]]; then
+			rm -f -- "$LOG_FILE"
+		fi
+		EXIT_CODE="0"
+	fi
+
+	# -----------------------------------------------------------------------------
+	# Add symlink to last backup
+	# -----------------------------------------------------------------------------
+
+	fn_rm_file "$DEST_FOLDER/latest"
+	fn_ln "$(basename -- "$DEST")" "$DEST_FOLDER/latest"
+
+	fn_rm_file "$INPROGRESS_FILE"
+
+	exit $EXIT_CODE
+>>>>>>> 1b4319b827b697f25ca70abf82d39a0ebfd98bed
 done
